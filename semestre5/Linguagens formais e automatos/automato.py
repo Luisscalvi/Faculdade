@@ -46,73 +46,54 @@ class Automato:
             self.finais.add(estado_atual)  # adiciona estado atual aos estados finais
 
     def determinizar(self):
-        # Constrói o dicionário de transições do AFND em que cada par
-        # (estado, símbolo) aponta para um conjunto de destinos.
-        nfa_transicoes = {}
-        for (origem, simbolo), destino in self.transicoes.items():
-            destino_set = destino if isinstance(destino, set) else {destino}
-            nfa_transicoes.setdefault((origem, simbolo), set()).update(destino_set)
+        novos_estados = {}
+        prox_estado = max(self.estados) + 1
 
-        # Cálculo do epsilon-closure: conjunto de todos os estados
-        # alcançáveis a partir de um conjunto inicial por transições vazias.
-        def epsilon_closure(estados):
-            fechamento = set(estados)
-            pilha = list(estados)
-            while pilha:
-                estado_atual = pilha.pop()
-                for destino in nfa_transicoes.get((estado_atual, ""), set()):
-                    if destino not in fechamento:
-                        fechamento.add(destino)
-                        pilha.append(destino)
-            return fechamento
+        mudou = True
 
-        # Estado inicial do DFA é o epsilon-closure do estado inicial do NFA.
-        estado_inicial = frozenset(epsilon_closure({self.inicial}))
-        dfa_map = {estado_inicial: 0}
-        dfa_estados = {0}
-        dfa_finais = set()
-        dfa_transicoes = {}
-        fila = [estado_inicial]
+        while mudou:
 
-        # Marcar estado inicial como final se qualquer estado NFA nele for final.
-        if estado_inicial & self.finais:
-            dfa_finais.add(0)
+            mudou = False
 
-        # Processa cada estado do DFA criado a partir de subconjuntos do NFA.
-        while fila:
-            estado_conjunto = fila.pop(0)
-            estado_dfa = dfa_map[estado_conjunto]
+            for chave in list(self.transicoes.keys()):
 
-            for simbolo in self.alfabeto:
-                if simbolo == "":
+                destinos = self.transicoes[chave]
+
+                if len(destinos) <= 1:
                     continue
 
-                destinos = set()
-                for estado in estado_conjunto:
-                    destinos |= nfa_transicoes.get((estado, simbolo), set())
+                conjunto = frozenset(destinos)
 
-                destinos = epsilon_closure(destinos)
-                if not destinos:
-                    continue
+                if conjunto not in novos_estados:
 
-                estado_destino = frozenset(destinos)
-                if estado_destino not in dfa_map:
-                    dfa_map[estado_destino] = len(dfa_map)
-                    dfa_estados.add(dfa_map[estado_destino])
-                    fila.append(estado_destino)
-                    if estado_destino & self.finais:
-                        dfa_finais.add(dfa_map[estado_destino])
+                    novo = prox_estado
+                    prox_estado += 1
 
-                dfa_transicoes[(estado_dfa, simbolo)] = dfa_map[estado_destino]
+                    novos_estados[conjunto] = novo
+                    self.estados.add(novo)
 
-        # Atualiza o autômato para a versão determinística.
-        self.estados = dfa_estados
-        self.finais = dfa_finais
-        self.transicoes = dfa_transicoes
-        self.inicial = 0
-        # Reseta o contador para o maior ID existente + 1
-        self._proximo_id = max(self.estados) + 1 if self.estados else 1
+                    # calcular transições do novo estado
+                    for simbolo in self.alfabeto:
 
+                        uniao = set()
+
+                        for estado in conjunto:
+                            uniao |= self.transicoes.get(
+                                (estado, simbolo),
+                                set()
+                            )
+
+                        if uniao:
+                            self.transicoes[(novo, simbolo)] = uniao
+
+                    # estado final?
+                    if conjunto & self.finais:
+                        self.finais.add(novo)
+
+                self.transicoes[chave] = {novos_estados[conjunto]}
+
+                mudou = True
+                
     def minimizar(self):
         # não lista indexada por inteiros contíguos
         conjunto_transicoes = {estado: set() for estado in self.estados}
