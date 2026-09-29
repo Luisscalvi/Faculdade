@@ -134,6 +134,7 @@ class Automato:
 
     def determinizar(self):
         novos_estados = {}
+        
         prox_estado = self._novo_estado
         # algoritmo de determinização: enquanto houver estados com mais de um destino,
         # cria um novo estado para o conjunto de destinos
@@ -166,7 +167,7 @@ class Automato:
 
                 self.transicoes[chave] = {novos_estados[conjunto]} # atualiza a transição para apontar para o novo estado determinizado
                 mudou = True
-
+                
     def minimizar(self):
         conjunto_transicoes = {estado: set() for estado in self.estados}
 
