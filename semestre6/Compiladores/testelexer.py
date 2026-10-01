@@ -261,7 +261,14 @@ class AutomatoeLexer:
             return self.erro
         return next(iter(destinos))  # AFD: só há um destino
 
-    def _registrar_token(self, estado, rotulo, linha):
+    @staticmethod
+    def _nome_simbolo(simbolo):
+        # Nome legível do caractere, para a impressão do passo a passo.
+        nomes = {" ": "<espaço>", "\t": "<tab>", "\n": "<fim da linha>", "\r": "<retorno>"}
+        return nomes.get(simbolo, f"'{simbolo}'")
+
+    def _registrar_token(self, estado, rotulo, linha, passo_a_passo=False):
+        estado_ao_parar = estado
         # 6: se estado não final, EstadoCorrente = X
         if estado not in self.finais:
             estado = self.erro
@@ -270,15 +277,35 @@ class AutomatoeLexer:
         # 8: add TS(linha, EstadoCorrente, label)
         self.tabela_simbolos.append((linha, estado, rotulo))
 
-    def reconhecer(self):
+        if passo_a_passo:
+            eh_final = estado_ao_parar in self.finais
+            print(f"  passo 6: o token parou em {estado_ao_parar}, que "
+                  f"{'é final -> mantém ' + estado if eh_final else 'NÃO é final -> vira ' + estado}")
+            print(f"  passo 7: adiciona {estado} na FITA")
+            print(f"  passo 8: adiciona ({linha}, {estado}, {rotulo}) na Tabela de Símbolos")
+            print(f"  passo 9: volta para {self.inicial}")
+            print(f"  >> FITA até agora: {' '.join(self.fita)}")
+            print("  >> Tabela de Símbolos até agora:")
+            print(f"     {'LINHA':<8}{'IDENTIFICADOR':<16}RÓTULO")
+            for l, ident, rot in self.tabela_simbolos:
+                print(f"     {l:<8}{ident:<16}{rot}")
+
+    def reconhecer(self, passo_a_passo=False):
         # A entrada é a que já foi lida pelo autômato (self.entrada): cada
         # linha de token do arquivo, com o seu número de linha.
         self.fita = []
         self.tabela_simbolos = []
 
+        if passo_a_passo:
+            print("\n===== RECONHECIMENTO (passo a passo) =====")
+
         for numero_linha, linha in self.entrada:
             estado_corrente = self.inicial  # 1: EstadoCorrente = S
             rotulo = ""                     # lexema sendo lido
+
+            if passo_a_passo:
+                print(f"\n--- Linha {numero_linha}: \"{linha}\" ---")
+                print(f"  passo 1: EstadoCorrente = {estado_corrente}")
 
             # O "\n" no final funciona como separador sentinela: garante que o
             # último token da linha seja fechado mesmo sem espaço depois dele.
@@ -287,17 +314,31 @@ class AutomatoeLexer:
                     if rotulo == "":
                         continue  # separadores repetidos, nada a registrar
 
-                    self._registrar_token(estado_corrente, rotulo, numero_linha)  # 6, 7, 8
+                    if passo_a_passo:
+                        print(f"  passo 2: lê {self._nome_simbolo(simbolo)} -> é separador, "
+                              f"o token \"{rotulo}\" terminou")
+
+                    self._registrar_token(estado_corrente, rotulo, numero_linha, passo_a_passo)  # 6, 7, 8
 
                     estado_corrente = self.inicial  # 9: volta para 1
                     rotulo = ""
                 else:
                     # 4: EstadoCorrente = AF[EstadoCorrente, Símbolo]
+                    anterior = estado_corrente
                     estado_corrente = self._proximo_estado(estado_corrente, simbolo)
                     rotulo += simbolo
                     # 5: vai para 2 (próxima iteração)
 
+                    if passo_a_passo:
+                        print(f"  passo 2: lê '{simbolo}' -> AF[{anterior}, {simbolo}] = "
+                              f"{estado_corrente}    rótulo = \"{rotulo}\"")
+
         self.fita.append("$")
+
+        if passo_a_passo:
+            print("\n--- Fim da entrada ---")
+            print(f"  adiciona $ na FITA -> FITA: {' '.join(self.fita)}")
+            print("===== FIM DO RECONHECIMENTO =====\n")
 
     # ------------------------------------------------------------------
     # Saídas
@@ -375,7 +416,7 @@ if __name__ == "__main__":
     automato.printar_automato()
 
     # reconhecimento léxico sobre a entrada já carregada
-    automato.reconhecer()
+    automato.reconhecer(passo_a_passo=True)
     automato.imprimir_fita()
     automato.imprimir_tabela_simbolos()
     automato.salvar_saidas()
